@@ -1,0 +1,42 @@
+# 이 파일은 GitHub에서 만들 때 경로(파일명 칸)에 .github/workflows/daily.yml 을 입력해야 합니다.
+# 이 줄을 포함해 전체를 그대로 복사해 붙여넣어도 됩니다. (#으로 시작하는 줄은 주석)
+
+name: daily-krx-data
+
+on:
+  schedule:
+    - cron: '40 8 * * 1-5'   # UTC 기준 → 한국시간 평일 17:40 (장 마감 후)
+  workflow_dispatch:          # 수동 실행 버튼도 활성화
+    inputs:
+      ticker:
+        description: '임시로 추가 수집할 종목코드 6자리 (선택)'
+        required: false
+
+permissions:
+  contents: write             # 수집 결과를 저장소에 커밋하기 위한 권한
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 라이브러리 설치
+        run: pip install pandas requests finance-datareader
+
+      - name: 데이터 수집·지표 계산
+        run: python collect.py ${{ inputs.ticker }}
+        env:
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
+
+      - name: 결과 저장(커밋)
+        run: |
+          git config user.name "krx-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A data
+          git commit -m "data: $(date -u -d '+9 hours' +'%Y-%m-%d %H:%M KST')" || echo "변경 없음"
+          git push
